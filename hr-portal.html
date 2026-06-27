@@ -318,9 +318,8 @@ tr:hover td{background:#fafbff}
           <button class="btn btn-primary" onclick="generateReport()">✨ Сгенерировать</button>
           <span id="rep-status" style="font-size:13px;color:#888"></span>
         </div>
-        <div id="rep-api-key-row" style="margin-top:12px;display:flex;gap:8px;align-items:center">
-          <input type="password" id="rep-api-key" placeholder="Введите Claude API ключ (sk-ant-...)" style="padding:7px 10px;border:1px solid #dde;border-radius:6px;font-size:13px;flex:1">
-          <button class="btn btn-secondary btn-sm" onclick="saveApiKey()">Сохранить ключ</button>
+        <div id="rep-api-key-row" style="display:none">
+          <input type="password" id="rep-api-key">
         </div>
         <div id="report-output" style="display:none"></div>
         <div id="rep-actions" style="display:none;gap:8px;margin-top:10px">
@@ -937,65 +936,408 @@ function saveApiKey(){
   toast('API ключ сохранён');
 }
 
-async function generateReport(){
-  if(!apiKey){toast('Введите Claude API ключ');return;}
+function generateReport(){
   const rt=reportTypes.find(r=>r.id===selectedReportType);
-  const section=document.getElementById('rep-section').value;
   const period=document.getElementById('rep-period').value;
   const addressee=document.getElementById('rep-addressee').value||'Руководству';
   const scope=document.getElementById('rep-scope').value;
   const extra=document.getElementById('rep-extra').value;
-
-  const fotSummary=store.fotData.slice(0,5).map(f=>`${f.company}: план ${fmt(f.admPlan+f.prodPlan+f.outPlan)} тыс.₸, факт ${fmt(f.admFact+f.prodFact+f.outFact)} тыс.₸`).join('\n');
-  const hcSummary=store.headcountData.slice(0,4).map(h=>`${h.company}: адм. ${h.admin}, произв. ${h.production}, аутстаф. ${h.outstaffing}`).join('\n');
-  const socSummary=store.socialProjects.slice(0,4).map(s=>`${s.name} (${s.status}, ${s.cost} млн.₸)`).join('\n');
-
-  const prompt=`Ты — корпоративный аналитик HR-отдела казахстанской нефтегазовой корпорации. Создай документ типа "${rt.title}" со следующими параметрами:
-- Период: ${period}
-- Адресат: ${addressee}
-- Охват: ${scope}
-- Раздел данных: ${section==='all'?'все разделы':section}
-${extra?'- Доп. инструкции: '+extra:''}
-
-Данные из системы:
-ФОТ (топ записей):
-${fotSummary}
-
-Численность:
-${hcSummary}
-
-Социальные проекты:
-${socSummary}
-
-Всего компаний в системе: ${store.companies.length}
-Итого принято на работу: ${store.hiringData.reduce((a,h)=>a+h.hired,0)} чел.
-Итого уволено: ${store.hiringData.reduce((a,h)=>a+h.dismissed,0)} чел.
-Затраты на обучение (факт): ${fmt(store.trainingData.reduce((a,t)=>a+t.budgetFact,0))} тыс.₸, обучено ${store.trainingData.reduce((a,t)=>a+t.trainedCount,0)} чел.
-
-Используй реальные цифры из данных. Пиши на русском языке, официально-деловым стилем. Формат: "${rt.title}".`;
-
   const status=document.getElementById('rep-status');
-  status.textContent='⏳ Генерация...';
+
+  status.textContent='⏳ Формирование документа...';
   document.getElementById('report-output').style.display='none';
   document.getElementById('rep-actions').style.display='none';
 
-  try{
-    const res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
-    });
-    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||res.statusText);}
-    const data=await res.json();
-    const text=data.content[0].text;
-    const out=document.getElementById('report-output');
-    out.textContent=text;out.style.display='block';
-    document.getElementById('rep-actions').style.display='flex';
-    status.textContent='✅ Готово';
-    store.activity.unshift({icon:'📝',text:`Сгенерирован документ «${rt.title}» за ${period}`,time:'только что'});
-  }catch(e){
-    status.textContent='❌ Ошибка: '+e.message;
+  setTimeout(()=>{
+    try{
+      const text = buildDocument(rt.id, period, addressee, scope, extra);
+      const out=document.getElementById('report-output');
+      out.textContent=text; out.style.display='block';
+      document.getElementById('rep-actions').style.display='flex';
+      status.textContent='✅ Готово';
+      store.activity.unshift({icon:'📝',text:`Сгенерирован документ «${rt.title}» за ${period}`,time:'только что'});
+    }catch(e){
+      status.textContent='❌ Ошибка: '+e.message;
+    }
+  }, 400);
+}
+
+function buildDocument(type, period, addressee, scope, extra){
+  // --- собираем данные ---
+  const today = new Date().toLocaleDateString('ru-RU');
+  const totalHC = store.companies.reduce((a,c)=>a+c.headcount,0);
+  const totFotPlan = store.fotData.reduce((a,f)=>a+f.admPlan+f.prodPlan+f.outPlan+f.conPlan,0);
+  const totFotFact = store.fotData.reduce((a,f)=>a+f.admFact+f.prodFact+f.outFact+f.conFact,0);
+  const fotPct = totFotPlan ? ((totFotFact/totFotPlan)*100).toFixed(1) : '—';
+  const totHired = store.hiringData.reduce((a,h)=>a+h.hired,0);
+  const totDism  = store.hiringData.reduce((a,h)=>a+h.dismissed,0);
+  const totRec   = store.hiringData.reduce((a,h)=>a+h.recruitingCost,0);
+  const avgHC    = store.headcountData.reduce((a,h)=>a+h.avgHeadcount,0)/Math.max(store.headcountData.length,1);
+  const turnover = avgHC ? ((totDism/avgHC)*100).toFixed(1) : '—';
+  const totTrPlan= store.trainingData.reduce((a,t)=>a+t.budgetPlan,0);
+  const totTrFact= store.trainingData.reduce((a,t)=>a+t.budgetFact,0);
+  const totTrained=store.trainingData.reduce((a,t)=>a+t.trainedCount,0);
+  const trPct    = totTrPlan ? ((totTrFact/totTrPlan)*100).toFixed(1) : '—';
+  const activeSoc= store.socialProjects.filter(s=>s.status==='Активный').length;
+  const totSocCost=store.socialProjects.reduce((a,s)=>a+s.cost,0);
+  const totComps  = store.companies.length;
+  const subsidiaries = store.companies.filter(c=>c.type==='Дочерняя').length;
+  const contractors  = store.companies.filter(c=>c.type==='Подрядчик').length;
+  const admin = store.headcountData.reduce((a,h)=>a+h.admin,0);
+  const prod  = store.headcountData.reduce((a,h)=>a+h.production,0);
+  const outst = store.headcountData.reduce((a,h)=>a+h.outstaffing,0);
+  const male  = store.headcountData.reduce((a,h)=>a+h.male,0);
+  const female= store.headcountData.reduce((a,h)=>a+h.female,0);
+  const pensioners = store.headcountData.reduce((a,h)=>a+h.pensioners,0);
+  const qualified  = store.headcountData.reduce((a,h)=>a+h.qualified,0);
+
+  // топ-5 компаний
+  const top5 = [...store.companies].sort((a,b)=>b.headcount-a.headcount).slice(0,5);
+  const top5lines = top5.map((c,i)=>`  ${i+1}. ${c.name} — ${fmt(c.headcount)} чел., ФОТ ${fmt(c.fot)} млн.₸`).join('\n');
+
+  // ФОТ по компаниям (топ-5 строк)
+  const fotLines = store.fotData.slice(0,5).map(f=>{
+    const p=f.admPlan+f.prodPlan+f.outPlan+f.conPlan;
+    const fc=f.admFact+f.prodFact+f.outFact+f.conFact;
+    const pct=p?((fc/p)*100).toFixed(1):0;
+    return `  • ${f.company} (${f.period}): план ${fmt(p)} тыс.₸, факт ${fmt(fc)} тыс.₸, исп. ${pct}%`;
+  }).join('\n');
+
+  // соц проекты активные
+  const activeSocLines = store.socialProjects.filter(s=>s.status==='Активный')
+    .map(s=>`  • ${s.name} (${s.type}, ${s.region}) — ${fmt(s.cost)} млн.₸`).join('\n');
+
+  const extraBlock = extra ? `\nДополнительно: ${extra}\n` : '';
+
+  // ====== ШАБЛОНЫ ======
+  if(type==='analytical'){
+    return `АНАЛИТИЧЕСКАЯ СПРАВКА
+по кадровым показателям Группы компаний
+Период: ${period}
+Дата составления: ${today}
+Адресат: ${addressee}
+Охват: ${scope}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ОБЩИЕ СВЕДЕНИЯ
+
+По состоянию на дату составления справки в базе системы зарегистрированы ${totComps} организаций, в том числе ${subsidiaries} дочерних компаний и ${contractors} подрядных организаций.
+
+Среднесписочная численность персонала по Группе составила ${fmt(Math.round(avgHC))} человек. Структура персонала: административный — ${fmt(admin)} чел. (${admin?(admin/(admin+prod+outst)*100).toFixed(1):0}%), производственный — ${fmt(prod)} чел. (${prod?(prod/(admin+prod+outst)*100).toFixed(1):0}%), аутстаффинг — ${fmt(outst)} чел.
+
+Гендерное распределение: мужчины — ${fmt(male)} чел. (${male?(male/(male+female)*100).toFixed(1):0}%), женщины — ${fmt(female)} чел. (${female?(female/(male+female)*100).toFixed(1):0}%). Численность пенсионеров составляет ${fmt(pensioners)} чел., квалифицированных работников — ${fmt(qualified)} чел.
+
+2. ФОНД ОПЛАТЫ ТРУДА
+
+Совокупный ФОТ по Группе за период: план — ${fmt(Math.round(totFotPlan/1000))} млн.₸, факт — ${fmt(Math.round(totFotFact/1000))} млн.₸. Процент исполнения плана составил ${fotPct}%.
+
+Показатели по ключевым компаниям:
+${fotLines}
+
+${fotPct>=95?'Плановые показатели ФОТ в целом выполнены.':'Наблюдается отставание от плановых показателей ФОТ, необходим анализ причин.'}
+
+3. ДВИЖЕНИЕ ПЕРСОНАЛА И РЕКРУТИНГ
+
+За отчётный период принято на работу ${fmt(totHired)} человек, уволено — ${fmt(totDism)} человек. Показатель текучести кадров составил ${turnover}%. Затраты на рекрутинг — ${fmt(totRec)} тыс.₸.
+
+Топ-5 компаний по численности персонала:
+${top5lines}
+
+4. ЗАТРАТЫ НА ОБУЧЕНИЕ И РАЗВИТИЕ ПЕРСОНАЛА
+
+Бюджет на обучение: план — ${fmt(totTrPlan)} тыс.₸, факт — ${fmt(totTrFact)} тыс.₸ (${trPct}% от плана). За отчётный период прошли обучение ${fmt(totTrained)} сотрудников.
+
+5. СОЦИАЛЬНЫЕ ПРОЕКТЫ
+
+В реестре системы зарегистрировано ${store.socialProjects.length} социальных проектов общей стоимостью ${fmt(totSocCost)} млн.₸. Активных проектов: ${activeSoc}.
+
+Реализуемые проекты:
+${activeSocLines||'  Активных проектов нет'}
+${extraBlock}
+6. ВЫВОДЫ И РЕКОМЕНДАЦИИ
+
+1. Исполнение ФОТ по Группе составило ${fotPct}%, что ${parseFloat(fotPct)>=95?'соответствует нормативному показателю':'требует принятия корректирующих мер'}.
+2. Текучесть кадров (${turnover}%) ${parseFloat(turnover)<=5?'находится в допустимых пределах':'превышает целевой показатель — рекомендуется провести анализ причин увольнений'}.
+3. Охват обучением составил ${fmt(totTrained)} сотрудников при исполнении бюджета ${trPct}%.
+4. Рекомендуется усилить контроль за исполнением плановых показателей по компаниям с отклонением более 5%.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Справка подготовлена: ${today}
+HR Аналитический Портал v1.0`;
   }
+
+  if(type==='presentation'){
+    return `ТЕЗИСЫ ДЛЯ ПРЕЗЕНТАЦИИ
+«Кадровые показатели Группы компаний»
+Период: ${period} | Адресат: ${addressee}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+СЛАЙД 1 — ТИТУЛЬНЫЙ
+Кадровые показатели Группы компаний
+Период: ${period}
+Подготовлено: HR-блок Корпорации, ${today}
+
+──────────────────────────────────────
+СЛАЙД 2 — КЛЮЧЕВЫЕ ПОКАЗАТЕЛИ (KPI)
+• Компаний в базе: ${totComps} (дочерние: ${subsidiaries}, подрядчики: ${contractors})
+• Среднесписочная численность: ${fmt(Math.round(avgHC))} человек
+• Исполнение ФОТ: ${fotPct}% от плана
+• Принято за период: ${fmt(totHired)} чел. | Уволено: ${fmt(totDism)} чел.
+• Текучесть кадров: ${turnover}%
+• Активных социальных проектов: ${activeSoc}
+
+──────────────────────────────────────
+СЛАЙД 3 — СТРУКТУРА ПЕРСОНАЛА
+• Административный персонал: ${fmt(admin)} чел.
+• Производственный персонал: ${fmt(prod)} чел.
+• Аутстаффинг: ${fmt(outst)} чел.
+• Мужчины / Женщины: ${fmt(male)} / ${fmt(female)}
+• Пенсионеры: ${fmt(pensioners)} чел.
+• Квалифицированные работники: ${fmt(qualified)} чел.
+
+──────────────────────────────────────
+СЛАЙД 4 — ФОТ: ПЛАН VS ФАКТ
+• Совокупный план: ${fmt(Math.round(totFotPlan/1000))} млн.₸
+• Совокупный факт: ${fmt(Math.round(totFotFact/1000))} млн.₸
+• Исполнение: ${fotPct}%
+• ${parseFloat(fotPct)>=95?'✅ Плановые показатели выполнены':'⚠️ Необходим анализ отклонений'}
+
+──────────────────────────────────────
+СЛАЙД 5 — ТОП-5 КОМПАНИЙ ПО ЧИСЛЕННОСТИ
+${top5.map((c,i)=>`${i+1}. ${c.name}: ${fmt(c.headcount)} чел.`).join('\n')}
+
+──────────────────────────────────────
+СЛАЙД 6 — ДВИЖЕНИЕ ПЕРСОНАЛА
+• Принято на работу: ${fmt(totHired)} человек
+• Уволено: ${fmt(totDism)} человек
+• Текучесть кадров: ${turnover}%
+• Затраты на рекрутинг: ${fmt(totRec)} тыс.₸
+• ${parseFloat(turnover)<=5?'✅ Текучесть в норме':'⚠️ Текучесть превышает целевой показатель'}
+
+──────────────────────────────────────
+СЛАЙД 7 — ОБУЧЕНИЕ И РАЗВИТИЕ
+• Бюджет план: ${fmt(totTrPlan)} тыс.₸
+• Бюджет факт: ${fmt(totTrFact)} тыс.₸ (${trPct}%)
+• Обучено сотрудников: ${fmt(totTrained)} чел.
+• Затраты на 1 сотрудника: ${fmt(totTrained?Math.round(totTrFact/totTrained):0)} тыс.₸
+
+──────────────────────────────────────
+СЛАЙД 8 — СОЦИАЛЬНЫЕ ПРОЕКТЫ
+• Всего проектов: ${store.socialProjects.length}
+• Активных: ${activeSoc}
+• Общая стоимость: ${fmt(totSocCost)} млн.₸
+Ключевые проекты:
+${store.socialProjects.filter(s=>s.status==='Активный').slice(0,3).map(s=>`• ${s.name} — ${fmt(s.cost)} млн.₸`).join('\n')||'  —'}
+${extraBlock}
+──────────────────────────────────────
+СЛАЙД 9 — ВЫВОДЫ
+• ФОТ исполнен на ${fotPct}% — ${parseFloat(fotPct)>=95?'в норме':'требует внимания'}
+• Текучесть ${turnover}% — ${parseFloat(turnover)<=5?'стабильная':'повышенная'}
+• Обучение охватило ${fmt(totTrained)} сотрудников
+• ${activeSoc} социальных проекта в активной фазе
+
+──────────────────────────────────────
+СЛАЙД 10 — СЛЕДУЮЩИЕ ШАГИ
+• Мониторинг исполнения ФОТ на ежемесячной основе
+• Анализ причин текучести по компаниям с высоким показателем
+• Завершение реализации активных социальных проектов
+• Обновление данных по численности за следующий период
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Подготовлено: ${today} | HR Аналитический Портал v1.0`;
+  }
+
+  if(type==='letter'){
+    return `ДЕЛОВОЕ ПИСЬМО
+
+${today}
+
+Кому: ${addressee}
+От: HR-блок Корпорации
+Тема: Информация о кадровых показателях за ${period}
+
+Уважаемый(ая) ${addressee},
+
+Направляем Вам информацию о кадровых показателях Группы компаний за ${period}.
+
+По состоянию на отчётную дату в системе зарегистрированы ${totComps} организаций с общей среднесписочной численностью ${fmt(Math.round(avgHC))} человек.
+
+Фонд оплаты труда исполнен на ${fotPct}% (план — ${fmt(Math.round(totFotPlan/1000))} млн.₸, факт — ${fmt(Math.round(totFotFact/1000))} млн.₸).
+
+За отчётный период принято на работу ${fmt(totHired)} сотрудников, уволено ${fmt(totDism)}. Текучесть кадров составила ${turnover}%.
+
+На обучение персонала направлено ${fmt(totTrFact)} тыс.₸ (${trPct}% от плана), прошли обучение ${fmt(totTrained)} сотрудников.
+
+В рамках социальной ответственности реализуется ${activeSoc} активных социальных проектов общей стоимостью ${fmt(totSocCost)} млн.₸.
+${extraBlock}
+Просим принять к сведению представленные показатели. По всем вопросам обращайтесь в HR-блок Корпорации.
+
+С уважением,
+HR-блок Корпорации
+${today}`;
+  }
+
+  if(type==='short'){
+    return `КРАТКАЯ СПРАВКА
+Кадровые показатели | ${period}
+Составлена: ${today} | Адресат: ${addressee}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ЧИСЛЕННОСТЬ
+▸ Всего по Группе: ${fmt(Math.round(avgHC))} чел. (${totComps} компаний)
+▸ Административный: ${fmt(admin)} | Производственный: ${fmt(prod)} | Аутстаффинг: ${fmt(outst)}
+
+ФОТ
+▸ План: ${fmt(Math.round(totFotPlan/1000))} млн.₸ | Факт: ${fmt(Math.round(totFotFact/1000))} млн.₸ | Исп.: ${fotPct}%
+
+ДВИЖЕНИЕ ПЕРСОНАЛА
+▸ Принято: +${fmt(totHired)} чел. | Уволено: -${fmt(totDism)} чел. | Текучесть: ${turnover}%
+
+ОБУЧЕНИЕ
+▸ Бюджет факт: ${fmt(totTrFact)} тыс.₸ (${trPct}%) | Обучено: ${fmt(totTrained)} чел.
+
+СОЦИАЛЬНЫЕ ПРОЕКТЫ
+▸ Активных: ${activeSoc} из ${store.socialProjects.length} | Стоимость: ${fmt(totSocCost)} млн.₸
+${extraBlock}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HR Аналитический Портал | ${today}`;
+  }
+
+  if(type==='full'){
+    return `РАЗВЁРНУТЫЙ ОТЧЁТ
+по кадровым показателям Группы компаний
+Период: ${period}
+Дата: ${today} | Адресат: ${addressee} | Охват: ${scope}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+РАЗДЕЛ 1. СОСТАВ И СТРУКТУРА ГРУППЫ КОМПАНИЙ
+
+1.1. Общие сведения
+В базе HR-системы зарегистрировано ${totComps} организаций: ${subsidiaries} дочерних компаний и ${contractors} подрядных организаций. Все компании охвачены отчётностью в разрезе ФОТ, численности, обучения и рекрутинга.
+
+1.2. Топ-5 компаний по численности персонала
+${top5lines}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+РАЗДЕЛ 2. ЧИСЛЕННОСТЬ ПЕРСОНАЛА
+
+2.1. Сводная численность
+Среднесписочная численность по Группе за ${period}: ${fmt(Math.round(avgHC))} человек.
+
+Категории персонала:
+  • Административный: ${fmt(admin)} чел. (${admin?(admin/(admin+prod+outst)*100).toFixed(1):0}%)
+  • Производственный: ${fmt(prod)} чел. (${prod?(prod/(admin+prod+outst)*100).toFixed(1):0}%)
+  • Аутстаффинг: ${fmt(outst)} чел. (${outst?(outst/(admin+prod+outst)*100).toFixed(1):0}%)
+
+2.2. Демографические показатели
+  • Мужчины: ${fmt(male)} чел. (${male?(male/(male+female)*100).toFixed(1):0}%)
+  • Женщины: ${fmt(female)} чел. (${female?(female/(male+female)*100).toFixed(1):0}%)
+  • Пенсионеры: ${fmt(pensioners)} чел.
+  • Квалифицированные работники: ${fmt(qualified)} чел.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+РАЗДЕЛ 3. ФОНД ОПЛАТЫ ТРУДА
+
+3.1. Сводные показатели ФОТ
+  • План: ${fmt(Math.round(totFotPlan/1000))} млн.₸
+  • Факт: ${fmt(Math.round(totFotFact/1000))} млн.₸
+  • Исполнение: ${fotPct}%
+  • Отклонение: ${fmt(Math.round((totFotFact-totFotPlan)/1000))} млн.₸
+
+3.2. Показатели по компаниям
+${fotLines}
+
+Анализ: ${parseFloat(fotPct)>=95?'Плановые показатели ФОТ выполнены в целом по Группе. Отдельные компании демонстрируют перерасход, что требует мониторинга.':'Фактическое исполнение ФОТ ниже планового уровня. Необходим детальный анализ по каждой компании и разработка корректирующих мероприятий.'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+РАЗДЕЛ 4. ДВИЖЕНИЕ ПЕРСОНАЛА И РЕКРУТИНГ
+
+4.1. Показатели движения персонала
+  • Принято на работу: ${fmt(totHired)} человек
+  • Уволено: ${fmt(totDism)} человек
+  • Текучесть кадров: ${turnover}%
+  • Затраты на рекрутинг: ${fmt(totRec)} тыс.₸
+  • Стоимость одного найма: ${fmt(totHired?Math.round(totRec/totHired):0)} тыс.₸
+
+Оценка: текучесть кадров ${parseFloat(turnover)<=5?'находится в допустимом диапазоне (≤5%)':'превышает целевой показатель 5%, что свидетельствует о необходимости мер по удержанию персонала'}.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+РАЗДЕЛ 5. ОБУЧЕНИЕ И РАЗВИТИЕ ПЕРСОНАЛА
+
+5.1. Финансовые показатели
+  • Бюджет (план): ${fmt(totTrPlan)} тыс.₸
+  • Бюджет (факт): ${fmt(totTrFact)} тыс.₸
+  • Исполнение бюджета: ${trPct}%
+  • Прошли обучение: ${fmt(totTrained)} сотрудников
+  • Затраты на 1 сотрудника: ${fmt(totTrained?Math.round(totTrFact/totTrained):0)} тыс.₸
+
+5.2. Виды обучения
+${['Профессиональное','Управленческое','Охрана труда','Корпоративное'].map(tp=>{
+  const rows=store.trainingData.filter(t=>t.trainingType===tp);
+  const fact=rows.reduce((a,t)=>a+t.budgetFact,0);
+  const cnt=rows.reduce((a,t)=>a+t.trainedCount,0);
+  return `  • ${tp}: ${fmt(fact)} тыс.₸, ${fmt(cnt)} чел.`;
+}).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+РАЗДЕЛ 6. СОЦИАЛЬНЫЕ ПРОЕКТЫ
+
+6.1. Реестр проектов
+  • Всего проектов: ${store.socialProjects.length}
+  • Активных: ${activeSoc}
+  • Завершённых: ${store.socialProjects.filter(s=>s.status==='Завершён').length}
+  • Общая стоимость: ${fmt(totSocCost)} млн.₸
+
+6.2. Активные проекты
+${activeSocLines||'  Активных проектов нет'}
+${extraBlock}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+РАЗДЕЛ 7. ВЫВОДЫ И РЕКОМЕНДАЦИИ
+
+1. Численность персонала: ${fmt(Math.round(avgHC))} чел. — показатель стабилен.
+2. ФОТ: исполнение ${fotPct}% — ${parseFloat(fotPct)>=95?'норма':'ниже нормы, требуются корректирующие меры'}.
+3. Текучесть: ${turnover}% — ${parseFloat(turnover)<=5?'в допустимых пределах':'повышенная, рекомендуется провести exit-интервью'}.
+4. Обучение: охвачено ${fmt(totTrained)} чел., бюджет исполнен на ${trPct}%.
+5. Социальные инвестиции: ${fmt(totSocCost)} млн.₸ в ${store.socialProjects.length} проектах.
+
+РЕКОМЕНДАЦИИ:
+  → Усилить мониторинг ФОТ в компаниях с отклонением более 5%
+  → Провести анализ причин текучести по структурным подразделениям
+  → Рассмотреть возможность расширения программ профессионального обучения
+  → Обеспечить своевременное внесение данных в систему всеми компаниями
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Отчёт подготовлен автоматически системой HR Аналитический Портал
+Дата: ${today} | Версия данных актуальна на момент формирования`;
+  }
+
+  if(type==='memo'){
+    return `СЛУЖЕБНАЯ ЗАПИСКА
+
+Кому:    ${addressee}
+От:      HR-блок Корпорации
+Дата:    ${today}
+Тема:    Кадровые показатели за ${period}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Довожу до Вашего сведения следующую информацию о кадровых показателях Группы компаний за ${period}.
+
+ЧИСЛЕННОСТЬ: среднесписочная численность по Группе составила ${fmt(Math.round(avgHC))} человек (${totComps} компаний).
+
+ФОТ: план — ${fmt(Math.round(totFotPlan/1000))} млн.₸, факт — ${fmt(Math.round(totFotFact/1000))} млн.₸, исполнение — ${fotPct}%.
+
+ДВИЖЕНИЕ ПЕРСОНАЛА: принято ${fmt(totHired)} чел., уволено ${fmt(totDism)} чел., текучесть — ${turnover}%.
+
+ОБУЧЕНИЕ: обучено ${fmt(totTrained)} сотрудников, освоено ${fmt(totTrFact)} тыс.₸ (${trPct}% бюджета).
+
+СОЦИАЛЬНЫЕ ПРОЕКТЫ: реализуется ${activeSoc} активных проектов.
+${extraBlock}
+Прошу принять к сведению.
+
+Исполнитель: HR-блок Корпорации
+Дата: ${today}`;
+  }
+
+  return 'Неизвестный тип документа';
 }
 
 function copyReport(){navigator.clipboard.writeText(document.getElementById('report-output').textContent);toast('Скопировано в буфер');}
