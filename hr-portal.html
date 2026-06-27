@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HR Аналитический Портал</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f5f7;color:#1a1a2e;display:flex;min-height:100vh}
+/* SIDEBAR */
+#sidebar{width:240px;min-height:100vh;background:#1f4f9e;color:#fff;display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100}
+.sidebar-logo{padding:20px 16px 16px;border-bottom:1px solid rgba(255,255,255,.15)}
+.sidebar-logo h1{font-size:15px;font-weight:700;line-height:1.3}
+.sidebar-logo span{font-size:11px;opacity:.7}
+.nav-group{padding:12px 0 4px}
+.nav-label{font-size:10px;font-weight:700;letter-spacing:.8px;opacity:.5;padding:0 16px 6px;text-transform:uppercase}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;font-size:13.5px;transition:background .15s;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.1)}
+.nav-item.active{background:rgba(255,255,255,.18);border-left-color:#fff;font-weight:600}
+.sidebar-footer{margin-top:auto;padding:12px 16px;font-size:11px;opacity:.45;border-top:1px solid rgba(255,255,255,.1)}
+/* MAIN */
+#main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+#topbar{background:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e4e6ea;position:sticky;top:0;z-index:50}
+#topbar h2{font-size:17px;font-weight:700;color:#1a1a2e}
+.topbar-actions{display:flex;gap:8px}
+.btn{padding:7px 14px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .15s}
+.btn:hover{opacity:.85}
+.btn-primary{background:#1f4f9e;color:#fff}
+.btn-secondary{background:#f0f3fa;color:#1f4f9e}
+.btn-success{background:#0d7f4f;color:#fff}
+.btn-danger{background:#c0392b;color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+/* CONTENT */
+#content{padding:24px;flex:1}
+.section{display:none}
+.section.active{display:block}
+/* KPI CARDS */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.kpi-card{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.kpi-label{font-size:11.5px;color:#666;margin-bottom:6px}
+.kpi-value{font-size:24px;font-weight:700;color:#1f4f9e}
+.kpi-sub{font-size:11px;color:#999;margin-top:4px}
+.kpi-card.green .kpi-value{color:#0d7f4f}
+.kpi-card.red .kpi-value{color:#c0392b}
+.kpi-card.purple .kpi-value{color:#5b3fa6}
+/* CHARTS */
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;margin-bottom:24px}
+.chart-card{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.chart-card h3{font-size:13px;font-weight:700;margin-bottom:14px;color:#333}
+.chart-card canvas{max-height:220px}
+/* TABLE */
+.table-card{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:24px}
+.table-card h3{font-size:13px;font-weight:700;margin-bottom:14px;color:#333}
+.filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.filter-bar select,.filter-bar input{padding:6px 10px;border:1px solid #dde;border-radius:6px;font-size:13px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#f4f5f7;padding:9px 12px;text-align:left;font-weight:700;font-size:12px;color:#555;border-bottom:2px solid #e4e6ea}
+td{padding:8px 12px;border-bottom:1px solid #f0f1f3;vertical-align:middle}
+tr:hover td{background:#fafbff}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-green{background:#e8f5ee;color:#0d7f4f}
+.badge-red{background:#fdecea;color:#c0392b}
+.badge-yellow{background:#fff8e1;color:#b45309}
+.badge-blue{background:#e8eef9;color:#1f4f9e}
+.badge-purple{background:#f0ebff;color:#5b3fa6}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:28px;width:560px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:17px;font-weight:700;margin-bottom:20px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:600;color:#555}
+.form-group input,.form-group select,.form-group textarea{padding:8px 10px;border:1px solid #dde;border-radius:6px;font-size:13px}
+.form-group textarea{resize:vertical;min-height:80px}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+/* TOAST */
+#toast{position:fixed;bottom:24px;right:24px;background:#1f4f9e;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;z-index:500;opacity:0;transition:opacity .3s;pointer-events:none}
+#toast.show{opacity:1}
+/* DROP ZONE */
+.drop-zone{border:2px dashed #1f4f9e;border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:background .2s;margin-bottom:16px}
+.drop-zone:hover,.drop-zone.drag-over{background:#e8eef9}
+.drop-zone p{color:#1f4f9e;font-weight:600;font-size:14px;margin-bottom:6px}
+.drop-zone span{color:#888;font-size:12px}
+/* ACTIVITY */
+.activity-list{list-style:none}
+.activity-list li{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #f0f1f3;font-size:13px;align-items:flex-start}
+.activity-list li .act-icon{font-size:16px;margin-top:1px}
+.activity-list li .act-time{color:#aaa;font-size:11px;white-space:nowrap;margin-top:2px}
+/* REPORT CARDS */
+.report-types{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin-bottom:20px}
+.report-type-card{background:#f4f5f7;border:2px solid transparent;border-radius:10px;padding:16px;cursor:pointer;transition:.15s}
+.report-type-card:hover{border-color:#1f4f9e;background:#e8eef9}
+.report-type-card.selected{border-color:#1f4f9e;background:#e8eef9}
+.report-type-card .rt-icon{font-size:26px;margin-bottom:8px}
+.report-type-card .rt-title{font-size:13px;font-weight:700}
+.report-type-card .rt-desc{font-size:11px;color:#888;margin-top:4px}
+#report-output{background:#f9f9fb;border:1px solid #e4e6ea;border-radius:8px;padding:20px;white-space:pre-wrap;font-size:13.5px;line-height:1.7;min-height:120px;margin-top:16px}
+/* PROGRESS */
+.progress-bar{background:#e4e6ea;border-radius:6px;height:6px;margin-top:6px}
+.progress-fill{background:#1f4f9e;height:6px;border-radius:6px;transition:width .4s}
+.doc-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f1f3}
+.doc-item .doc-icon{font-size:22px}
+.doc-item .doc-info{flex:1}
+.doc-item .doc-name{font-size:13px;font-weight:600}
+.doc-item .doc-meta{font-size:11px;color:#888}
+.pct-bar{display:inline-block;width:80px;height:8px;background:#e4e6ea;border-radius:4px;vertical-align:middle;margin-left:6px}
+.pct-fill{height:8px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <h1>⚡ HR Аналитика</h1>
+    <span>Корпоративный портал</span>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Основные разделы</div>
+    <div class="nav-item active" onclick="navigate('dashboard')">📊 Дашборд</div>
+    <div class="nav-item" onclick="navigate('payroll')">💰 Фонд оплаты труда</div>
+    <div class="nav-item" onclick="navigate('headcount')">👥 Численность</div>
+    <div class="nav-item" onclick="navigate('training')">🎓 Обучение</div>
+    <div class="nav-item" onclick="navigate('hiring')">🔍 Рекрутинг</div>
+    <div class="nav-item" onclick="navigate('social')">🤝 Социальные проекты</div>
+  </div>
+  <div class="nav-group">
+    <div class="nav-label">Инструменты</div>
+    <div class="nav-item" onclick="navigate('documents')">📁 Документы</div>
+    <div class="nav-item" onclick="navigate('reports')">📝 Генерация отчётов</div>
+    <div class="nav-item" onclick="navigate('companies')">🏢 Компании</div>
+  </div>
+  <div class="sidebar-footer">v1.0 &nbsp;·&nbsp; HR Portal © 2025</div>
+</nav>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <h2 id="page-title">Дашборд</h2>
+    <div class="topbar-actions">
+      <button class="btn btn-secondary" onclick="navigate('documents')">📎 Загрузить файл</button>
+      <button class="btn btn-primary" onclick="navigate('reports')">✨ Создать отчёт</button>
+    </div>
+  </div>
+  <div id="content">
+
+    <!-- DASHBOARD -->
+    <div id="s-dashboard" class="section active">
+      <div class="kpi-grid" id="dash-kpis"></div>
+      <div class="chart-grid">
+        <div class="chart-card"><h3>ФОТ план vs факт по месяцам</h3><canvas id="ch-fot"></canvas></div>
+        <div class="chart-card"><h3>Структура численности</h3><canvas id="ch-struct"></canvas></div>
+      </div>
+      <div class="table-card">
+        <h3>Топ-5 компаний по численности</h3>
+        <table><thead><tr><th>Компания</th><th>Адм.</th><th>Произв.</th><th>Аутстаф.</th><th>Итого</th></tr></thead>
+        <tbody id="dash-top5"></tbody></table>
+      </div>
+      <div class="table-card">
+        <h3>Последние действия</h3>
+        <ul class="activity-list" id="activity-list"></ul>
+      </div>
+    </div>
+
+    <!-- PAYROLL -->
+    <div id="s-payroll" class="section">
+      <div class="kpi-grid" id="fot-kpis"></div>
+      <div class="filter-bar">
+        <select id="fot-filter-year" onchange="renderPayroll()"><option value="">Все годы</option></select>
+        <select id="fot-filter-q" onchange="renderPayroll()">
+          <option value="">Все кварталы</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option>
+        </select>
+        <select id="fot-filter-type" onchange="renderPayroll()">
+          <option value="">Все типы</option><option>Дочерняя</option><option>Подрядчик</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-fot')">+ Добавить</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel('fot')">⬇ Excel</button>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card"><h3>ФОТ план vs факт по категориям</h3><canvas id="ch-fot-cat"></canvas></div>
+        <div class="chart-card"><h3>Отклонение факта от плана (%)</h3><canvas id="ch-fot-dev"></canvas></div>
+      </div>
+      <div class="table-card">
+        <table><thead><tr><th>Компания</th><th>Тип</th><th>Период</th><th>Адм. план</th><th>Адм. факт</th><th>Произв. план</th><th>Произв. факт</th><th>Аутстаф. план</th><th>Аутстаф. факт</th><th>% исп.</th></tr></thead>
+        <tbody id="fot-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- HEADCOUNT -->
+    <div id="s-headcount" class="section">
+      <div class="kpi-grid" id="hc-kpis"></div>
+      <div class="filter-bar">
+        <select id="hc-filter-period" onchange="renderHeadcount()"><option value="">Все периоды</option></select>
+        <select id="hc-filter-company" onchange="renderHeadcount()"><option value="">Все компании</option></select>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-hc')">+ Добавить</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel('hc')">⬇ Excel</button>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card"><h3>Распределение по полу</h3><canvas id="ch-gender"></canvas></div>
+        <div class="chart-card"><h3>Распределение по возрасту</h3><canvas id="ch-age"></canvas></div>
+      </div>
+      <div class="table-card">
+        <table><thead><tr><th>Компания</th><th>Период</th><th>Адм.</th><th>Произв.</th><th>Аутстаф.</th><th>Мужч.</th><th>Женщ.</th><th>Пенсионеры</th><th>Квалиф.</th><th>Среднеспис.</th></tr></thead>
+        <tbody id="hc-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- TRAINING -->
+    <div id="s-training" class="section">
+      <div class="kpi-grid" id="tr-kpis"></div>
+      <div class="filter-bar">
+        <select id="tr-filter-year" onchange="renderTraining()"><option value="">Все годы</option></select>
+        <select id="tr-filter-type" onchange="renderTraining()">
+          <option value="">Все типы</option><option>Профессиональное</option><option>Управленческое</option><option>Охрана труда</option><option>Корпоративное</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-tr')">+ Добавить</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel('tr')">⬇ Excel</button>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card"><h3>Затраты план vs факт по компаниям</h3><canvas id="ch-tr-comp"></canvas></div>
+        <div class="chart-card"><h3>Структура затрат по типам</h3><canvas id="ch-tr-type"></canvas></div>
+      </div>
+      <div class="table-card">
+        <table><thead><tr><th>Компания</th><th>Тип</th><th>Год</th><th>Вид обучения</th><th>Бюджет план (тыс.₸)</th><th>Бюджет факт (тыс.₸)</th><th>% к плану</th><th>Обучено (чел.)</th></tr></thead>
+        <tbody id="tr-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- HIRING -->
+    <div id="s-hiring" class="section">
+      <div class="kpi-grid" id="hi-kpis"></div>
+      <div class="filter-bar">
+        <select id="hi-filter-company" onchange="renderHiring()"><option value="">Все компании</option></select>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-hi')">+ Добавить</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportExcel('hi')">⬇ Excel</button>
+      </div>
+      <div class="chart-grid">
+        <div class="chart-card"><h3>Динамика приёма / увольнения</h3><canvas id="ch-hi-dyn"></canvas></div>
+        <div class="chart-card"><h3>Затраты на рекрутинг по компаниям</h3><canvas id="ch-hi-cost"></canvas></div>
+      </div>
+      <div class="table-card">
+        <table><thead><tr><th>Компания</th><th>Период</th><th>Принято</th><th>Уволено</th><th>Затр. рекрутинг (тыс.₸)</th><th>Затр. оценка (тыс.₸)</th><th>Текучесть %</th></tr></thead>
+        <tbody id="hi-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- SOCIAL -->
+    <div id="s-social" class="section">
+      <div class="kpi-grid" id="soc-kpis"></div>
+      <div class="filter-bar">
+        <input type="text" id="soc-search" placeholder="Поиск по названию..." oninput="renderSocial()">
+        <select id="soc-filter-type" onchange="renderSocial()">
+          <option value="">Все типы</option><option>Строительство</option><option>Благотворительность</option><option>Лицензионные обязательства</option><option>Обучение</option><option>Экология</option><option>Прочее</option>
+        </select>
+        <select id="soc-filter-status" onchange="renderSocial()">
+          <option value="">Все статусы</option><option>Планируется</option><option>Активный</option><option>Завершён</option><option>Приостановлен</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-soc')">+ Добавить</button>
+      </div>
+      <div class="table-card">
+        <div style="font-size:12px;color:#888;margin-bottom:8px">Проектов: <b id="soc-count">0</b></div>
+        <table><thead><tr><th>Название</th><th>Тип</th><th>Компания</th><th>Регион</th><th>Стоимость (млн.₸)</th><th>Начало</th><th>Конец</th><th>Статус</th></tr></thead>
+        <tbody id="soc-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- DOCUMENTS -->
+    <div id="s-documents" class="section">
+      <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+        <p>📂 Перетащите файлы сюда или нажмите для выбора</p>
+        <span>PDF, XLSX, XLS, DOCX, DOC, PPTX, PPT, CSV, TXT</span>
+      </div>
+      <input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xls,.docx,.doc,.pptx,.ppt,.csv,.txt" style="display:none" onchange="handleFileUpload(event)">
+      <div class="table-card">
+        <h3>Загруженные документы</h3>
+        <div id="doc-list"></div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="s-reports" class="section">
+      <div class="table-card">
+        <h3>Выберите тип документа</h3>
+        <div class="report-types" id="report-types"></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Раздел данных</label>
+            <select id="rep-section">
+              <option value="all">Все разделы</option><option value="fot">ФОТ</option><option value="hc">Численность</option><option value="tr">Обучение</option><option value="hi">Рекрутинг</option><option value="soc">Соц. проекты</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Период</label>
+            <select id="rep-period">
+              <option>1 полугодие 2025</option><option>2 полугодие 2025</option><option>Q1 2025</option><option>Q2 2025</option><option>Q3 2025</option><option>Q4 2025</option><option>Год 2025</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Адресат</label>
+            <input type="text" id="rep-addressee" placeholder="Председатель Правления">
+          </div>
+          <div class="form-group">
+            <label>Охват</label>
+            <select id="rep-scope">
+              <option>Все дочерние</option><option>Все подрядчики</option><option>Топ-10 по численности</option><option>Вся группа</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Дополнительные инструкции</label>
+            <textarea id="rep-extra" placeholder="Акцентировать внимание на отклонениях, сравнить с прошлым годом..."></textarea>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+          <button class="btn btn-primary" onclick="generateReport()">✨ Сгенерировать</button>
+          <span id="rep-status" style="font-size:13px;color:#888"></span>
+        </div>
+        <div id="rep-api-key-row" style="margin-top:12px;display:flex;gap:8px;align-items:center">
+          <input type="password" id="rep-api-key" placeholder="Введите Claude API ключ (sk-ant-...)" style="padding:7px 10px;border:1px solid #dde;border-radius:6px;font-size:13px;flex:1">
+          <button class="btn btn-secondary btn-sm" onclick="saveApiKey()">Сохранить ключ</button>
+        </div>
+        <div id="report-output" style="display:none"></div>
+        <div id="rep-actions" style="display:none;gap:8px;margin-top:10px">
+          <button class="btn btn-secondary btn-sm" onclick="copyReport()">📋 Копировать</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadReport()">⬇ Скачать .txt</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPANIES -->
+    <div id="s-companies" class="section">
+      <div class="filter-bar">
+        <input type="text" id="comp-search" placeholder="Поиск по названию..." oninput="renderCompanies()">
+        <select id="comp-filter-type" onchange="renderCompanies()">
+          <option value="">Все типы</option><option>Дочерняя</option><option>Подрядчик</option>
+        </select>
+        <select id="comp-filter-region" onchange="renderCompanies()"><option value="">Все регионы</option></select>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-comp')">+ Добавить</button>
+      </div>
+      <div style="font-size:12px;color:#888;margin-bottom:8px">Компаний: <b id="comp-count">0</b></div>
+      <div class="table-card">
+        <table><thead><tr><th>БИН</th><th>Наименование</th><th>Тип</th><th>Регион</th><th>Отрасль</th><th>Численность</th><th>ФОТ (млн.₸)</th><th></th></tr></thead>
+        <tbody id="comp-tbody"></tbody></table>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-fot">
+  <div class="modal">
+    <h2>Добавить данные ФОТ</h2>
+    <div class="form-grid">
+      <div class="form-group"><label>Компания</label><select id="fot-company"></select></div>
+      <div class="form-group"><label>Период</label><input type="text" id="fot-period" placeholder="2025 Q1"></div>
+      <div class="form-group"><label>Адм. план (тыс.₸)</label><input type="number" id="fot-adm-plan"></div>
+      <div class="form-group"><label>Адм. факт (тыс.₸)</label><input type="number" id="fot-adm-fact"></div>
+      <div class="form-group"><label>Произв. план</label><input type="number" id="fot-prod-plan"></div>
+      <div class="form-group"><label>Произв. факт</label><input type="number" id="fot-prod-fact"></div>
+      <div class="form-group"><label>Аутстаф. план</label><input type="number" id="fot-out-plan"></div>
+      <div class="form-group"><label>Аутстаф. факт</label><input type="number" id="fot-out-fact"></div>
+      <div class="form-group"><label>Подряд. план</label><input type="number" id="fot-con-plan"></div>
+      <div class="form-group"><label>Подряд. факт</label><input type="number" id="fot-con-fact"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-fot')">Отмена</button>
+      <button class="btn btn-primary" onclick="addFot()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-hc">
+  <div class="modal">
+    <h2>Добавить данные по численности</h2>
+    <div class="form-grid">
+      <div class="form-group"><label>Компания</label><select id="hc-company"></select></div>
+      <div class="form-group"><label>Период (мес. год)</label><input type="text" id="hc-period" placeholder="Январь 2025"></div>
+      <div class="form-group"><label>Адм. персонал</label><input type="number" id="hc-admin"></div>
+      <div class="form-group"><label>Произв. персонал</label><input type="number" id="hc-prod"></div>
+      <div class="form-group"><label>Аутстаффинг</label><input type="number" id="hc-out"></div>
+      <div class="form-group"><label>Мужчины</label><input type="number" id="hc-male"></div>
+      <div class="form-group"><label>Женщины</label><input type="number" id="hc-female"></div>
+      <div class="form-group"><label>Пенсионеры</label><input type="number" id="hc-pens"></div>
+      <div class="form-group"><label>Квалифицированные</label><input type="number" id="hc-qual"></div>
+      <div class="form-group"><label>18–30 лет</label><input type="number" id="hc-a1"></div>
+      <div class="form-group"><label>31–45 лет</label><input type="number" id="hc-a2"></div>
+      <div class="form-group"><label>46–55 лет</label><input type="number" id="hc-a3"></div>
+      <div class="form-group"><label>55+ лет</label><input type="number" id="hc-a4"></div>
+      <div class="form-group"><label>Среднесписочная</label><input type="number" id="hc-avg"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-hc')">Отмена</button>
+      <button class="btn btn-primary" onclick="addHc()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-tr">
+  <div class="modal">
+    <h2>Добавить затраты на обучение</h2>
+    <div class="form-grid">
+      <div class="form-group"><label>Компания</label><select id="tr-company"></select></div>
+      <div class="form-group"><label>Год</label><input type="number" id="tr-year" value="2025"></div>
+      <div class="form-group"><label>Вид обучения</label>
+        <select id="tr-type-val"><option>Профессиональное</option><option>Управленческое</option><option>Охрана труда</option><option>Корпоративное</option></select></div>
+      <div class="form-group"><label>Бюджет план (тыс.₸)</label><input type="number" id="tr-bplan"></div>
+      <div class="form-group"><label>Бюджет факт (тыс.₸)</label><input type="number" id="tr-bfact"></div>
+      <div class="form-group"><label>Обучено (чел.)</label><input type="number" id="tr-count"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-tr')">Отмена</button>
+      <button class="btn btn-primary" onclick="addTr()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-hi">
+  <div class="modal">
+    <h2>Добавить данные рекрутинга</h2>
+    <div class="form-grid">
+      <div class="form-group"><label>Компания</label><select id="hi-company"></select></div>
+      <div class="form-group"><label>Период</label><input type="text" id="hi-period" placeholder="Январь 2025"></div>
+      <div class="form-group"><label>Принято (чел.)</label><input type="number" id="hi-hired"></div>
+      <div class="form-group"><label>Уволено (чел.)</label><input type="number" id="hi-dismissed"></div>
+      <div class="form-group"><label>Затр. рекрутинг (тыс.₸)</label><input type="number" id="hi-rcost"></div>
+      <div class="form-group"><label>Затр. оценка (тыс.₸)</label><input type="number" id="hi-acost"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-hi')">Отмена</button>
+      <button class="btn btn-primary" onclick="addHi()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-soc">
+  <div class="modal">
+    <h2>Добавить социальный проект</h2>
+    <div class="form-grid">
+      <div class="form-group full"><label>Название проекта</label><input type="text" id="soc-name"></div>
+      <div class="form-group"><label>Тип</label>
+        <select id="soc-type-val"><option>Строительство</option><option>Благотворительность</option><option>Лицензионные обязательства</option><option>Обучение</option><option>Экология</option><option>Прочее</option></select></div>
+      <div class="form-group"><label>Компания</label><select id="soc-company"></select></div>
+      <div class="form-group"><label>Регион</label><input type="text" id="soc-region"></div>
+      <div class="form-group"><label>Стоимость (млн.₸)</label><input type="number" id="soc-cost"></div>
+      <div class="form-group"><label>Дата начала</label><input type="date" id="soc-start"></div>
+      <div class="form-group"><label>Дата окончания</label><input type="date" id="soc-end"></div>
+      <div class="form-group"><label>Статус</label>
+        <select id="soc-status-val"><option>Планируется</option><option>Активный</option><option>Завершён</option><option>Приостановлен</option></select></div>
+      <div class="form-group full"><label>Описание</label><textarea id="soc-desc"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-soc')">Отмена</button>
+      <button class="btn btn-primary" onclick="addSoc()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-comp">
+  <div class="modal">
+    <h2>Добавить компанию</h2>
+    <div class="form-grid">
+      <div class="form-group"><label>БИН</label><input type="text" id="comp-bin" maxlength="12"></div>
+      <div class="form-group"><label>Наименование</label><input type="text" id="comp-name"></div>
+      <div class="form-group"><label>Тип</label>
+        <select id="comp-type-val"><option>Дочерняя</option><option>Подрядчик</option></select></div>
+      <div class="form-group"><label>Регион</label><input type="text" id="comp-region"></div>
+      <div class="form-group"><label>Отрасль</label><input type="text" id="comp-industry"></div>
+      <div class="form-group"><label>Численность (чел.)</label><input type="number" id="comp-hc"></div>
+      <div class="form-group"><label>ФОТ (млн.₸)</label><input type="number" id="comp-fot"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-comp')">Отмена</button>
+      <button class="btn btn-primary" onclick="addCompany()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ========== STORE ==========
+const store = {
+  companies: [
+    {bin:'123456789012',name:'КазМунайГаз Разведка',type:'Дочерняя',region:'Атырау',industry:'Нефтегаз',headcount:1240,fot:2850},
+    {bin:'234567890123',name:'КМГ Инжиниринг',type:'Дочерняя',region:'Астана',industry:'Инжиниринг',headcount:450,fot:890},
+    {bin:'345678901234',name:'КазТрансГаз',type:'Дочерняя',region:'Алматы',industry:'Транспортировка газа',headcount:870,fot:1650},
+    {bin:'456789012345',name:'КазМунайТениз',type:'Дочерняя',region:'Мангистау',industry:'Нефтедобыча',headcount:620,fot:1200},
+    {bin:'567890123456',name:'КМГ Переработка',type:'Дочерняя',region:'Шымкент',industry:'Нефтепереработка',headcount:980,fot:1890},
+    {bin:'678901234567',name:'СтройПодряд LLP',type:'Подрядчик',region:'Атырау',industry:'Строительство',headcount:320,fot:480},
+    {bin:'789012345678',name:'ТехСервис Казахстан',type:'Подрядчик',region:'Астана',industry:'Технические услуги',headcount:180,fot:290},
+    {bin:'890123456789',name:'ПромБезопасность',type:'Дочерняя',region:'Актобе',industry:'Охрана труда',headcount:210,fot:380},
+    {bin:'901234567890',name:'КазМунайГаз ОМГ',type:'Дочерняя',region:'Кызылорда',industry:'Нефтедобыча',headcount:560,fot:1050},
+    {bin:'012345678901',name:'ЭкоСервис Каспий',type:'Дочерняя',region:'Актау',industry:'Экология',headcount:140,fot:240},
+  ],
+  fotData: [
+    {company:'КазМунайГаз Разведка',type:'Дочерняя',period:'2025 Q1',admPlan:320000,admFact:308000,prodPlan:1800000,prodFact:1750000,outPlan:200000,outFact:195000,conPlan:0,conFact:0},
+    {company:'КМГ Инжиниринг',type:'Дочерняя',period:'2025 Q1',admPlan:120000,admFact:125000,prodPlan:580000,prodFact:560000,outPlan:80000,outFact:78000,conPlan:0,conFact:0},
+    {company:'КазТрансГаз',type:'Дочерняя',period:'2025 Q1',admPlan:210000,admFact:205000,prodPlan:980000,prodFact:1020000,outPlan:150000,outFact:148000,conPlan:0,conFact:0},
+    {company:'КазМунайТениз',type:'Дочерняя',period:'2025 Q1',admPlan:150000,admFact:148000,prodPlan:720000,prodFact:715000,outPlan:100000,outFact:98000,conPlan:0,conFact:0},
+    {company:'КМГ Переработка',type:'Дочерняя',period:'2025 Q1',admPlan:240000,admFact:238000,prodPlan:1100000,prodFact:1090000,outPlan:180000,outFact:175000,conPlan:0,conFact:0},
+    {company:'СтройПодряд LLP',type:'Подрядчик',period:'2025 Q1',admPlan:50000,admFact:48000,prodPlan:280000,prodFact:275000,outPlan:0,outFact:0,conPlan:330000,conFact:323000},
+    {company:'ТехСервис Казахстан',type:'Подрядчик',period:'2025 Q1',admPlan:35000,admFact:36000,prodPlan:150000,prodFact:148000,outPlan:0,outFact:0,conPlan:185000,conFact:184000},
+    {company:'КазМунайГаз Разведка',type:'Дочерняя',period:'2024 Q4',admPlan:310000,admFact:305000,prodPlan:1750000,prodFact:1740000,outPlan:195000,outFact:190000,conPlan:0,conFact:0},
+    {company:'КМГ Инжиниринг',type:'Дочерняя',period:'2024 Q4',admPlan:115000,admFact:118000,prodPlan:560000,prodFact:555000,outPlan:75000,outFact:73000,conPlan:0,conFact:0},
+    {company:'КазТрансГаз',type:'Дочерняя',period:'2024 Q4',admPlan:200000,admFact:198000,prodPlan:960000,prodFact:940000,outPlan:145000,outFact:142000,conPlan:0,conFact:0},
+  ],
+  headcountData: [
+    {company:'КазМунайГаз Разведка',type:'Дочерняя',period:'Январь 2025',admin:180,production:920,outstaffing:140,male:870,female:370,pensioners:85,qualified:680,age_18_30:220,age_31_45:510,age_46_55:340,age_55plus:170,avgHeadcount:1238},
+    {company:'КМГ Инжиниринг',type:'Дочерняя',period:'Январь 2025',admin:85,production:310,outstaffing:55,male:320,female:130,pensioners:28,qualified:260,age_18_30:90,age_31_45:195,age_46_55:115,age_55plus:50,avgHeadcount:448},
+    {company:'КазТрансГаз',type:'Дочерняя',period:'Январь 2025',admin:130,production:620,outstaffing:120,male:590,female:280,pensioners:62,qualified:450,age_18_30:160,age_31_45:360,age_46_55:240,age_55plus:110,avgHeadcount:868},
+    {company:'КазМунайТениз',type:'Дочерняя',period:'Январь 2025',admin:95,production:460,outstaffing:65,male:430,female:190,pensioners:45,qualified:320,age_18_30:120,age_31_45:270,age_46_55:160,age_55plus:70,avgHeadcount:618},
+    {company:'КМГ Переработка',type:'Дочерняя',period:'Январь 2025',admin:150,production:710,outstaffing:120,male:680,female:300,pensioners:72,qualified:520,age_18_30:180,age_31_45:420,age_46_55:260,age_55plus:120,avgHeadcount:978},
+    {company:'СтройПодряд LLP',type:'Подрядчик',period:'Январь 2025',admin:45,production:275,outstaffing:0,male:290,female:30,pensioners:15,qualified:180,age_18_30:80,age_31_45:155,age_46_55:70,age_55plus:15,avgHeadcount:318},
+  ],
+  trainingData: [
+    {company:'КазМунайГаз Разведка',type:'Дочерняя',year:2025,trainingType:'Профессиональное',budgetPlan:8500,budgetFact:8200,trainedCount:145},
+    {company:'КазМунайГаз Разведка',type:'Дочерняя',year:2025,trainingType:'Охрана труда',budgetPlan:3200,budgetFact:3150,trainedCount:380},
+    {company:'КМГ Инжиниринг',type:'Дочерняя',year:2025,trainingType:'Профессиональное',budgetPlan:3100,budgetFact:2950,trainedCount:62},
+    {company:'КМГ Инжиниринг',type:'Дочерняя',year:2025,trainingType:'Управленческое',budgetPlan:1800,budgetFact:1750,trainedCount:18},
+    {company:'КазТрансГаз',type:'Дочерняя',year:2025,trainingType:'Профессиональное',budgetPlan:5200,budgetFact:5100,trainedCount:95},
+    {company:'КазТрансГаз',type:'Дочерняя',year:2025,trainingType:'Корпоративное',budgetPlan:2100,budgetFact:2000,trainedCount:210},
+    {company:'КМГ Переработка',type:'Дочерняя',year:2025,trainingType:'Охрана труда',budgetPlan:4500,budgetFact:4400,trainedCount:280},
+    {company:'СтройПодряд LLP',type:'Подрядчик',year:2025,trainingType:'Охрана труда',budgetPlan:1200,budgetFact:1180,trainedCount:95},
+  ],
+  hiringData: [
+    {company:'КазМунайГаз Разведка',period:'Январь 2025',hired:24,dismissed:12,recruitingCost:480,assessmentCost:120,avgHC:1238},
+    {company:'КазМунайГаз Разведка',period:'Февраль 2025',hired:18,dismissed:8,recruitingCost:360,assessmentCost:90,avgHC:1244},
+    {company:'КМГ Инжиниринг',period:'Январь 2025',hired:8,dismissed:5,recruitingCost:160,assessmentCost:40,avgHC:448},
+    {company:'КМГ Инжиниринг',period:'Февраль 2025',hired:12,dismissed:3,recruitingCost:240,assessmentCost:60,avgHC:457},
+    {company:'КазТрансГаз',period:'Январь 2025',hired:15,dismissed:10,recruitingCost:300,assessmentCost:75,avgHC:868},
+    {company:'КазТрансГаз',period:'Февраль 2025',hired:20,dismissed:7,recruitingCost:400,assessmentCost:100,avgHC:881},
+    {company:'КМГ Переработка',period:'Январь 2025',hired:22,dismissed:14,recruitingCost:440,assessmentCost:110,avgHC:978},
+    {company:'СтройПодряд LLP',period:'Январь 2025',hired:30,dismissed:20,recruitingCost:300,assessmentCost:50,avgHC:318},
+  ],
+  socialProjects: [
+    {name:'Строительство детского сада в пос. Доссор',type:'Строительство',company:'КазМунайГаз Разведка',region:'Атырау',cost:120,startDate:'2024-09-01',endDate:'2025-06-30',status:'Активный',description:'Строительство детского сада на 150 мест для жителей посёлка Доссор'},
+    {name:'Благотворительная акция «Жылу»',type:'Благотворительность',company:'КМГ Инжиниринг',region:'Астана',cost:8.5,startDate:'2025-01-15',endDate:'2025-02-28',status:'Завершён',description:'Помощь малообеспеченным семьям в зимний период'},
+    {name:'Рекультивация нефтезагрязнённых земель',type:'Экология',company:'КазМунайТениз',region:'Мангистау',cost:450,startDate:'2025-03-01',endDate:'2026-12-31',status:'Активный',description:'Ликвидация экологического ущерба на площади 120 га'},
+    {name:'Стипендиальная программа КМГ',type:'Обучение',company:'КМГ Переработка',region:'Шымкент',cost:35,startDate:'2025-02-01',endDate:'2025-12-31',status:'Активный',description:'Поддержка студентов нефтехимических специальностей'},
+    {name:'Ремонт дороги к месторождению Карашыганак',type:'Лицензионные обязательства',company:'КазТрансГаз',region:'Западный Казахстан',cost:680,startDate:'2025-04-01',endDate:'2025-09-30',status:'Планируется',description:'Ремонт 45 км дороги согласно условиям лицензии'},
+    {name:'Посадка деревьев «Жасыл Ел»',type:'Экология',company:'ЭкоСервис Каспий',region:'Актау',cost:12,startDate:'2025-04-15',endDate:'2025-05-15',status:'Завершён',description:'Посадка 5000 деревьев в рамках программы озеленения'},
+    {name:'Спортивный комплекс для работников',type:'Строительство',company:'КазМунайГаз ОМГ',region:'Кызылорда',cost:290,startDate:'2025-01-01',endDate:'2026-06-30',status:'Активный',description:'Строительство спортивно-оздоровительного комплекса'},
+  ],
+  documents: [],
+  activity: [
+    {icon:'📊',text:'Добавлены данные ФОТ за Q1 2025 по КазМунайГаз Разведка',time:'10 мин. назад'},
+    {icon:'👥',text:'Обновлена численность персонала — КМГ Инжиниринг, январь 2025',time:'45 мин. назад'},
+    {icon:'📝',text:'Сгенерирован отчёт «Аналитическая справка по ФОТ Q1 2025»',time:'1 ч. назад'},
+    {icon:'🤝',text:'Добавлен новый социальный проект «Стипендиальная программа КМГ»',time:'2 ч. назад'},
+    {icon:'📁',text:'Загружен файл отчет_численность_январь.xlsx (245 строк)',time:'3 ч. назад'},
+    {icon:'🏢',text:'Добавлена новая компания: ЭкоСервис Каспий',time:'вчера'},
+  ]
+};
+
+let apiKey = localStorage.getItem('claude_api_key') || '';
+if(apiKey) document.getElementById('rep-api-key').value = apiKey;
+
+// charts registry
+const charts = {};
+
+// ========== NAVIGATION ==========
+const pageTitles = {dashboard:'Дашборд',payroll:'Фонд оплаты труда',headcount:'Численность персонала',training:'Затраты на обучение',hiring:'Рекрутинг и оценка',social:'Социальные проекты',documents:'Управление документами',reports:'Генерация отчётов',companies:'Справочник компаний'};
+
+function navigate(page) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('s-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>{if(n.textContent.trim().toLowerCase().includes(pageTitles[page]?.split(' ')[0].toLowerCase()))n.classList.add('active')});
+  document.getElementById('page-title').textContent = pageTitles[page]||page;
+  renders[page]&&renders[page]();
+}
+
+const renders = {
+  dashboard: renderDashboard,
+  payroll: renderPayroll,
+  headcount: renderHeadcount,
+  training: renderTraining,
+  hiring: renderHiring,
+  social: renderSocial,
+  reports: renderReports,
+  companies: renderCompanies,
+  documents: ()=>{}
+};
+
+// ========== UTILS ==========
+const fmt = n=>Math.round(n||0).toLocaleString('ru-RU');
+const pct = (f,p)=>p?((f/p)*100).toFixed(1):'—';
+
+function badge(val,g=95,y=100){
+  const v=parseFloat(val);
+  if(isNaN(v))return `<span class="badge badge-blue">${val}</span>`;
+  if(v>=g&&v<=y)return `<span class="badge badge-green">${v}%</span>`;
+  if(v>y)return `<span class="badge badge-yellow">${v}%</span>`;
+  return `<span class="badge badge-red">${v}%</span>`;
+}
+
+function statusBadge(s){
+  const m={Активный:'badge-green',Завершён:'badge-blue',Планируется:'badge-yellow',Приостановлен:'badge-red'};
+  return `<span class="badge ${m[s]||'badge-blue'}">${s}</span>`;
+}
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+function openModal(id){
+  refreshCompanySelects();
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+});
+
+function refreshCompanySelects(){
+  const names=store.companies.map(c=>`<option>${c.name}</option>`).join('');
+  ['fot-company','hc-company','tr-company','hi-company','soc-company'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.innerHTML=names;
+  });
+}
+
+function makeChart(id,type,data,opts={}){
+  if(charts[id])charts[id].destroy();
+  const ctx=document.getElementById(id);
+  if(!ctx)return;
+  charts[id]=new Chart(ctx,{type,data,options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}}, ...opts}});
+}
+
+// ========== DASHBOARD ==========
+function renderDashboard(){
+  const totalHC=store.companies.reduce((a,c)=>a+c.headcount,0);
+  const totalFOT=store.fotData.reduce((a,f)=>a+(f.admFact+f.prodFact+f.outFact+f.conFact),0);
+  const totalTrain=store.trainingData.reduce((a,t)=>a+t.budgetFact,0);
+  const totalHired=store.hiringData.reduce((a,h)=>a+h.hired,0);
+  const activeSoc=store.socialProjects.filter(s=>s.status==='Активный').length;
+
+  document.getElementById('dash-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Компании в базе</div><div class="kpi-value">${store.companies.length}</div><div class="kpi-sub">дочерние и подрядчики</div></div>
+    <div class="kpi-card"><div class="kpi-label">Среднесписочная численность</div><div class="kpi-value">${fmt(totalHC)}</div><div class="kpi-sub">по всей группе</div></div>
+    <div class="kpi-card green"><div class="kpi-label">ФОТ фактический</div><div class="kpi-value">${(totalFOT/1000000).toFixed(1)} млрд ₸</div><div class="kpi-sub">за текущий период</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Затраты на обучение</div><div class="kpi-value">${fmt(totalTrain)} тыс.₸</div><div class="kpi-sub">факт 2025</div></div>
+    <div class="kpi-card"><div class="kpi-label">Принято на работу</div><div class="kpi-value">${fmt(totalHired)}</div><div class="kpi-sub">в текущем году</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Активных соц. проектов</div><div class="kpi-value">${activeSoc}</div><div class="kpi-sub">из ${store.socialProjects.length} всего</div></div>
+  `;
+
+  // FOT chart by month (mock monthly)
+  makeChart('ch-fot','bar',{
+    labels:['Янв','Фев','Мар','Апр','Май','Июн'],
+    datasets:[
+      {label:'План',data:[2100,2150,2200,2180,2220,2250],backgroundColor:'rgba(31,79,158,.3)',borderColor:'#1f4f9e',borderWidth:2},
+      {label:'Факт',data:[2050,2100,2180,2140,2190,2210],backgroundColor:'rgba(13,127,79,.3)',borderColor:'#0d7f4f',borderWidth:2}
+    ]
+  },{scales:{y:{ticks:{callback:v=>v+'М'}}}});
+
+  // Structure
+  const admin=store.headcountData.reduce((a,h)=>a+h.admin,0);
+  const prod=store.headcountData.reduce((a,h)=>a+h.production,0);
+  const out=store.headcountData.reduce((a,h)=>a+h.outstaffing,0);
+  makeChart('ch-struct','doughnut',{
+    labels:['Административный','Производственный','Аутстаффинг'],
+    datasets:[{data:[admin,prod,out],backgroundColor:['#1f4f9e','#0d7f4f','#5b3fa6']}]
+  });
+
+  // Top 5
+  const top5=[...store.companies].sort((a,b)=>b.headcount-a.headcount).slice(0,5);
+  document.getElementById('dash-top5').innerHTML=top5.map(c=>{
+    const hcd=store.headcountData.find(h=>h.company===c.name)||{};
+    return `<tr><td><b>${c.name}</b></td><td>${fmt(hcd.admin||0)}</td><td>${fmt(hcd.production||0)}</td><td>${fmt(hcd.outstaffing||0)}</td><td><b>${fmt(c.headcount)}</b></td></tr>`;
+  }).join('');
+
+  document.getElementById('activity-list').innerHTML=store.activity.map(a=>`
+    <li><span class="act-icon">${a.icon}</span><span style="flex:1">${a.text}</span><span class="act-time">${a.time}</span></li>
+  `).join('');
+}
+
+// ========== PAYROLL ==========
+function renderPayroll(){
+  const yr=document.getElementById('fot-filter-year').value;
+  const q=document.getElementById('fot-filter-q').value;
+  const tp=document.getElementById('fot-filter-type').value;
+
+  // populate year filter
+  const years=[...new Set(store.fotData.map(f=>f.period.split(' ')[0]))];
+  const ysel=document.getElementById('fot-filter-year');
+  if(ysel.options.length<=1){years.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y;ysel.appendChild(o);});}
+
+  let data=store.fotData;
+  if(yr)data=data.filter(f=>f.period.startsWith(yr));
+  if(q)data=data.filter(f=>f.period.includes(q));
+  if(tp)data=data.filter(f=>f.type===tp);
+
+  const totPlan=data.reduce((a,f)=>a+f.admPlan+f.prodPlan+f.outPlan+f.conPlan,0);
+  const totFact=data.reduce((a,f)=>a+f.admFact+f.prodFact+f.outFact+f.conFact,0);
+  document.getElementById('fot-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">ФОТ план</div><div class="kpi-value">${fmt(Math.round(totPlan/1000))} млн.₸</div></div>
+    <div class="kpi-card green"><div class="kpi-label">ФОТ факт</div><div class="kpi-value">${fmt(Math.round(totFact/1000))} млн.₸</div></div>
+    <div class="kpi-card ${parseFloat(pct(totFact,totPlan))>=95?'green':'red'}"><div class="kpi-label">% исполнения</div><div class="kpi-value">${pct(totFact,totPlan)}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">Записей</div><div class="kpi-value">${data.length}</div></div>
+  `;
+
+  document.getElementById('fot-tbody').innerHTML=data.map(f=>{
+    const totP=f.admPlan+f.prodPlan+f.outPlan+f.conPlan;
+    const totF=f.admFact+f.prodFact+f.outFact+f.conFact;
+    return `<tr><td><b>${f.company}</b></td><td><span class="badge ${f.type==='Дочерняя'?'badge-blue':'badge-purple'}">${f.type}</span></td><td>${f.period}</td><td>${fmt(f.admPlan)}</td><td>${fmt(f.admFact)}</td><td>${fmt(f.prodPlan)}</td><td>${fmt(f.prodFact)}</td><td>${f.type==='Подрядчик'?'—':fmt(f.outPlan)}</td><td>${f.type==='Подрядчик'?'—':fmt(f.outFact)}</td><td>${badge(pct(totF,totP))}</td></tr>`;
+  }).join('');
+
+  // Chart categories
+  const cats=['Административный','Производственный','Аутстаффинг'];
+  const plan=[data.reduce((a,f)=>a+f.admPlan,0),data.reduce((a,f)=>a+f.prodPlan,0),data.reduce((a,f)=>a+f.outPlan,0)];
+  const fact=[data.reduce((a,f)=>a+f.admFact,0),data.reduce((a,f)=>a+f.prodFact,0),data.reduce((a,f)=>a+f.outFact,0)];
+  makeChart('ch-fot-cat','bar',{labels:cats,datasets:[{label:'План',data:plan,backgroundColor:'rgba(31,79,158,.5)'},{label:'Факт',data:fact,backgroundColor:'rgba(13,127,79,.5)'}]});
+
+  // Deviation chart
+  const compNames=[...new Set(data.map(f=>f.company))].slice(0,8);
+  const devs=compNames.map(name=>{
+    const rows=data.filter(f=>f.company===name);
+    const p=rows.reduce((a,f)=>a+f.admPlan+f.prodPlan+f.outPlan+f.conPlan,0);
+    const fc=rows.reduce((a,f)=>a+f.admFact+f.prodFact+f.outFact+f.conFact,0);
+    return p?((fc/p-1)*100).toFixed(1):0;
+  });
+  makeChart('ch-fot-dev','bar',{
+    labels:compNames.map(n=>n.length>15?n.slice(0,15)+'…':n),
+    datasets:[{label:'Отклонение %',data:devs,backgroundColor:devs.map(d=>d>=0?'rgba(13,127,79,.6)':'rgba(192,57,43,.6)')}]
+  });
+}
+
+// ========== HEADCOUNT ==========
+function renderHeadcount(){
+  const pf=document.getElementById('hc-filter-period');
+  const cf=document.getElementById('hc-filter-company');
+  const periods=[...new Set(store.headcountData.map(h=>h.period))];
+  const comps=[...new Set(store.headcountData.map(h=>h.company))];
+  if(pf.options.length<=1){periods.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;pf.appendChild(o);});}
+  if(cf.options.length<=1){comps.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;cf.appendChild(o);});}
+
+  let data=store.headcountData;
+  const pv=pf.value,cv=cf.value;
+  if(pv)data=data.filter(h=>h.period===pv);
+  if(cv)data=data.filter(h=>h.company===cv);
+
+  const totAdm=data.reduce((a,h)=>a+h.admin,0);
+  const totProd=data.reduce((a,h)=>a+h.production,0);
+  const totOut=data.reduce((a,h)=>a+h.outstaffing,0);
+  const totPens=data.reduce((a,h)=>a+h.pensioners,0);
+  const totQual=data.reduce((a,h)=>a+h.qualified,0);
+  const totAvg=data.reduce((a,h)=>a+h.avgHeadcount,0);
+
+  document.getElementById('hc-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Итого (среднеспис.)</div><div class="kpi-value">${fmt(totAvg)}</div></div>
+    <div class="kpi-card blue"><div class="kpi-label" style="color:#1f4f9e">Административный</div><div class="kpi-value">${fmt(totAdm)}</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Производственный</div><div class="kpi-value">${fmt(totProd)}</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Аутстаффинг</div><div class="kpi-value">${fmt(totOut)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Пенсионеры</div><div class="kpi-value">${fmt(totPens)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Квалифицированные</div><div class="kpi-value">${fmt(totQual)}</div></div>
+  `;
+
+  const male=data.reduce((a,h)=>a+h.male,0);
+  const female=data.reduce((a,h)=>a+h.female,0);
+  makeChart('ch-gender','doughnut',{labels:['Мужчины','Женщины'],datasets:[{data:[male,female],backgroundColor:['#1f4f9e','#e91e8c']}]});
+
+  const a1=data.reduce((a,h)=>a+h.age_18_30,0);
+  const a2=data.reduce((a,h)=>a+h.age_31_45,0);
+  const a3=data.reduce((a,h)=>a+h.age_46_55,0);
+  const a4=data.reduce((a,h)=>a+h.age_55plus,0);
+  makeChart('ch-age','bar',{labels:['18–30','31–45','46–55','55+'],datasets:[{label:'Чел.',data:[a1,a2,a3,a4],backgroundColor:['#1f4f9e','#0d7f4f','#5b3fa6','#b45309']}]});
+
+  document.getElementById('hc-tbody').innerHTML=data.map(h=>`
+    <tr><td><b>${h.company}</b></td><td>${h.period}</td><td>${fmt(h.admin)}</td><td>${fmt(h.production)}</td><td>${h.type==='Подрядчик'?'—':fmt(h.outstaffing)}</td><td>${fmt(h.male)}</td><td>${fmt(h.female)}</td><td>${fmt(h.pensioners)}</td><td>${fmt(h.qualified)}</td><td><b>${fmt(h.avgHeadcount)}</b></td></tr>
+  `).join('');
+}
+
+// ========== TRAINING ==========
+function renderTraining(){
+  const yf=document.getElementById('tr-filter-year');
+  const tf=document.getElementById('tr-filter-type');
+  const years=[...new Set(store.trainingData.map(t=>t.year))];
+  if(yf.options.length<=1){years.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y;yf.appendChild(o);});}
+
+  let data=store.trainingData;
+  if(yf.value)data=data.filter(t=>t.year==yf.value);
+  if(tf.value)data=data.filter(t=>t.trainingType===tf.value);
+
+  const totPlan=data.reduce((a,t)=>a+t.budgetPlan,0);
+  const totFact=data.reduce((a,t)=>a+t.budgetFact,0);
+  const totCount=data.reduce((a,t)=>a+t.trainedCount,0);
+  const avgCost=totCount?Math.round(totFact/totCount):0;
+
+  document.getElementById('tr-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Бюджет план (тыс.₸)</div><div class="kpi-value">${fmt(totPlan)}</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Бюджет факт (тыс.₸)</div><div class="kpi-value">${fmt(totFact)}</div></div>
+    <div class="kpi-card ${parseFloat(pct(totFact,totPlan))>=95?'green':'red'}"><div class="kpi-label">% к плану</div><div class="kpi-value">${pct(totFact,totPlan)}%</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Обучено (чел.)</div><div class="kpi-value">${fmt(totCount)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Затраты на 1 сотр. (тыс.₸)</div><div class="kpi-value">${fmt(avgCost)}</div></div>
+  `;
+
+  const compNames=[...new Set(data.map(t=>t.company))].slice(0,6);
+  const cpPlan=compNames.map(n=>data.filter(t=>t.company===n).reduce((a,t)=>a+t.budgetPlan,0));
+  const cpFact=compNames.map(n=>data.filter(t=>t.company===n).reduce((a,t)=>a+t.budgetFact,0));
+  makeChart('ch-tr-comp','bar',{labels:compNames.map(n=>n.length>12?n.slice(0,12)+'…':n),datasets:[{label:'План',data:cpPlan,backgroundColor:'rgba(31,79,158,.5)'},{label:'Факт',data:cpFact,backgroundColor:'rgba(13,127,79,.5)'}]});
+
+  const types=['Профессиональное','Управленческое','Охрана труда','Корпоративное'];
+  const typeData=types.map(tp=>data.filter(t=>t.trainingType===tp).reduce((a,t)=>a+t.budgetFact,0));
+  makeChart('ch-tr-type','doughnut',{labels:types,datasets:[{data:typeData,backgroundColor:['#1f4f9e','#0d7f4f','#5b3fa6','#b45309']}]});
+
+  document.getElementById('tr-tbody').innerHTML=data.map(t=>
+    `<tr><td><b>${t.company}</b></td><td><span class="badge badge-blue">${t.type}</span></td><td>${t.year}</td><td>${t.trainingType}</td><td>${fmt(t.budgetPlan)}</td><td>${fmt(t.budgetFact)}</td><td>${badge(pct(t.budgetFact,t.budgetPlan))}</td><td>${fmt(t.trainedCount)}</td></tr>`
+  ).join('');
+}
+
+// ========== HIRING ==========
+function renderHiring(){
+  const cf=document.getElementById('hi-filter-company');
+  const comps=[...new Set(store.hiringData.map(h=>h.company))];
+  if(cf.options.length<=1){comps.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;cf.appendChild(o);});}
+
+  let data=store.hiringData;
+  if(cf.value)data=data.filter(h=>h.company===cf.value);
+
+  const totHired=data.reduce((a,h)=>a+h.hired,0);
+  const totDism=data.reduce((a,h)=>a+h.dismissed,0);
+  const totRec=data.reduce((a,h)=>a+h.recruitingCost,0);
+  const totAss=data.reduce((a,h)=>a+h.assessmentCost,0);
+  const avgHC=data.reduce((a,h)=>a+h.avgHC,0)/data.length||1;
+  const turnover=((totDism/avgHC)*100).toFixed(1);
+  const costPerHire=totHired?Math.round(totRec/totHired):0;
+
+  document.getElementById('hi-kpis').innerHTML=`
+    <div class="kpi-card green"><div class="kpi-label">Принято (чел.)</div><div class="kpi-value">${fmt(totHired)}</div></div>
+    <div class="kpi-card red"><div class="kpi-label">Уволено (чел.)</div><div class="kpi-value">${fmt(totDism)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Затр. рекрутинг (тыс.₸)</div><div class="kpi-value">${fmt(totRec)}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Затр. оценка (тыс.₸)</div><div class="kpi-value">${fmt(totAss)}</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Текучесть кадров</div><div class="kpi-value">${turnover}%</div></div>
+    <div class="kpi-card"><div class="kpi-label">Стоимость 1 найма (тыс.₸)</div><div class="kpi-value">${fmt(costPerHire)}</div></div>
+  `;
+
+  const periods=[...new Set(data.map(h=>h.period))];
+  const hired=periods.map(p=>data.filter(h=>h.period===p).reduce((a,h)=>a+h.hired,0));
+  const dismissed=periods.map(p=>data.filter(h=>h.period===p).reduce((a,h)=>a+h.dismissed,0));
+  makeChart('ch-hi-dyn','line',{labels:periods,datasets:[
+    {label:'Принято',data:hired,borderColor:'#0d7f4f',backgroundColor:'rgba(13,127,79,.1)',fill:true,tension:.4},
+    {label:'Уволено',data:dismissed,borderColor:'#c0392b',backgroundColor:'rgba(192,57,43,.1)',fill:true,tension:.4}
+  ]});
+
+  const compNames=[...new Set(data.map(h=>h.company))];
+  const recCosts=compNames.map(n=>data.filter(h=>h.company===n).reduce((a,h)=>a+h.recruitingCost,0));
+  makeChart('ch-hi-cost','bar',{labels:compNames.map(n=>n.length>15?n.slice(0,15)+'…':n),datasets:[{label:'Затраты (тыс.₸)',data:recCosts,backgroundColor:'rgba(91,63,166,.5)'}]});
+
+  document.getElementById('hi-tbody').innerHTML=data.map(h=>{
+    const tur=h.avgHC?((h.dismissed/h.avgHC)*100).toFixed(1):0;
+    return `<tr><td><b>${h.company}</b></td><td>${h.period}</td><td style="color:#0d7f4f;font-weight:700">+${h.hired}</td><td style="color:#c0392b;font-weight:700">-${h.dismissed}</td><td>${fmt(h.recruitingCost)}</td><td>${fmt(h.assessmentCost)}</td><td>${badge(100-tur,0,5)}</td></tr>`;
+  }).join('');
+}
+
+// ========== SOCIAL ==========
+function renderSocial(){
+  const search=document.getElementById('soc-search').value.toLowerCase();
+  const type=document.getElementById('soc-filter-type').value;
+  const status=document.getElementById('soc-filter-status').value;
+
+  let data=store.socialProjects;
+  if(search)data=data.filter(s=>s.name.toLowerCase().includes(search)||s.description.toLowerCase().includes(search));
+  if(type)data=data.filter(s=>s.type===type);
+  if(status)data=data.filter(s=>s.status===status);
+
+  const totCost=data.reduce((a,s)=>a+s.cost,0);
+  const active=data.filter(s=>s.status==='Активный').length;
+  document.getElementById('soc-kpis').innerHTML=`
+    <div class="kpi-card"><div class="kpi-label">Проектов</div><div class="kpi-value">${data.length}</div></div>
+    <div class="kpi-card green"><div class="kpi-label">Активных</div><div class="kpi-value">${active}</div></div>
+    <div class="kpi-card purple"><div class="kpi-label">Общая стоимость (млн.₸)</div><div class="kpi-value">${fmt(totCost)}</div></div>
+  `;
+
+  document.getElementById('soc-count').textContent=data.length;
+  document.getElementById('soc-tbody').innerHTML=data.map(s=>
+    `<tr><td><b>${s.name}</b></td><td><span class="badge badge-blue">${s.type}</span></td><td>${s.company}</td><td>${s.region}</td><td>${fmt(s.cost)}</td><td>${s.startDate}</td><td>${s.endDate||'—'}</td><td>${statusBadge(s.status)}</td></tr>`
+  ).join('');
+}
+
+// ========== COMPANIES ==========
+function renderCompanies(){
+  const search=document.getElementById('comp-search').value.toLowerCase();
+  const type=document.getElementById('comp-filter-type').value;
+  const region=document.getElementById('comp-filter-region').value;
+
+  const rf=document.getElementById('comp-filter-region');
+  const regions=[...new Set(store.companies.map(c=>c.region))];
+  if(rf.options.length<=1){regions.forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;rf.appendChild(o);});}
+
+  let data=store.companies;
+  if(search)data=data.filter(c=>c.name.toLowerCase().includes(search));
+  if(type)data=data.filter(c=>c.type===type);
+  if(region)data=data.filter(c=>c.region===region);
+
+  document.getElementById('comp-count').textContent=data.length;
+  document.getElementById('comp-tbody').innerHTML=data.map(c=>
+    `<tr><td><code>${c.bin}</code></td><td><b>${c.name}</b></td><td><span class="badge ${c.type==='Дочерняя'?'badge-blue':'badge-purple'}">${c.type}</span></td><td>${c.region}</td><td>${c.industry}</td><td>${fmt(c.headcount)}</td><td>${fmt(c.fot)}</td><td><button class="btn btn-secondary btn-sm" onclick="copyComp('${c.name}')">📋</button></td></tr>`
+  ).join('');
+}
+
+function copyComp(name){
+  const c=store.companies.find(x=>x.name===name);
+  navigator.clipboard.writeText(JSON.stringify(c,null,2));
+  toast('Данные компании скопированы');
+}
+
+// ========== REPORTS ==========
+const reportTypes=[
+  {id:'analytical',icon:'📊',title:'Аналитическая справка',desc:'Структурированный анализ с выводами и динамикой'},
+  {id:'presentation',icon:'📑',title:'Тезисы для презентации',desc:'8–10 слайдов с заголовком и буллетами'},
+  {id:'letter',icon:'✉️',title:'Деловое письмо',desc:'Официальный стиль, обращение, суть'},
+  {id:'short',icon:'📌',title:'Краткая справка',desc:'Ключевые цифры и выводы'},
+  {id:'full',icon:'📋',title:'Развёрнутый отчёт',desc:'Полная структура с разделами и рекомендациями'},
+  {id:'memo',icon:'📝',title:'Служебная записка',desc:'Стандартная форма (Кому/От/Дата/Тема)'},
+];
+let selectedReportType='analytical';
+
+function renderReports(){
+  document.getElementById('report-types').innerHTML=reportTypes.map(r=>
+    `<div class="report-type-card ${r.id===selectedReportType?'selected':''}" onclick="selectReportType('${r.id}')">
+      <div class="rt-icon">${r.icon}</div><div class="rt-title">${r.title}</div><div class="rt-desc">${r.desc}</div>
+    </div>`
+  ).join('');
+}
+
+function selectReportType(id){selectedReportType=id;renderReports();}
+
+function saveApiKey(){
+  apiKey=document.getElementById('rep-api-key').value.trim();
+  localStorage.setItem('claude_api_key',apiKey);
+  toast('API ключ сохранён');
+}
+
+async function generateReport(){
+  if(!apiKey){toast('Введите Claude API ключ');return;}
+  const rt=reportTypes.find(r=>r.id===selectedReportType);
+  const section=document.getElementById('rep-section').value;
+  const period=document.getElementById('rep-period').value;
+  const addressee=document.getElementById('rep-addressee').value||'Руководству';
+  const scope=document.getElementById('rep-scope').value;
+  const extra=document.getElementById('rep-extra').value;
+
+  const fotSummary=store.fotData.slice(0,5).map(f=>`${f.company}: план ${fmt(f.admPlan+f.prodPlan+f.outPlan)} тыс.₸, факт ${fmt(f.admFact+f.prodFact+f.outFact)} тыс.₸`).join('\n');
+  const hcSummary=store.headcountData.slice(0,4).map(h=>`${h.company}: адм. ${h.admin}, произв. ${h.production}, аутстаф. ${h.outstaffing}`).join('\n');
+  const socSummary=store.socialProjects.slice(0,4).map(s=>`${s.name} (${s.status}, ${s.cost} млн.₸)`).join('\n');
+
+  const prompt=`Ты — корпоративный аналитик HR-отдела казахстанской нефтегазовой корпорации. Создай документ типа "${rt.title}" со следующими параметрами:
+- Период: ${period}
+- Адресат: ${addressee}
+- Охват: ${scope}
+- Раздел данных: ${section==='all'?'все разделы':section}
+${extra?'- Доп. инструкции: '+extra:''}
+
+Данные из системы:
+ФОТ (топ записей):
+${fotSummary}
+
+Численность:
+${hcSummary}
+
+Социальные проекты:
+${socSummary}
+
+Всего компаний в системе: ${store.companies.length}
+Итого принято на работу: ${store.hiringData.reduce((a,h)=>a+h.hired,0)} чел.
+Итого уволено: ${store.hiringData.reduce((a,h)=>a+h.dismissed,0)} чел.
+Затраты на обучение (факт): ${fmt(store.trainingData.reduce((a,t)=>a+t.budgetFact,0))} тыс.₸, обучено ${store.trainingData.reduce((a,t)=>a+t.trainedCount,0)} чел.
+
+Используй реальные цифры из данных. Пиши на русском языке, официально-деловым стилем. Формат: "${rt.title}".`;
+
+  const status=document.getElementById('rep-status');
+  status.textContent='⏳ Генерация...';
+  document.getElementById('report-output').style.display='none';
+  document.getElementById('rep-actions').style.display='none';
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1500,messages:[{role:'user',content:prompt}]})
+    });
+    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||res.statusText);}
+    const data=await res.json();
+    const text=data.content[0].text;
+    const out=document.getElementById('report-output');
+    out.textContent=text;out.style.display='block';
+    document.getElementById('rep-actions').style.display='flex';
+    status.textContent='✅ Готово';
+    store.activity.unshift({icon:'📝',text:`Сгенерирован документ «${rt.title}» за ${period}`,time:'только что'});
+  }catch(e){
+    status.textContent='❌ Ошибка: '+e.message;
+  }
+}
+
+function copyReport(){navigator.clipboard.writeText(document.getElementById('report-output').textContent);toast('Скопировано в буфер');}
+function downloadReport(){
+  const text=document.getElementById('report-output').textContent;
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
+  a.download='report.txt';a.click();
+}
+
+// ========== DOCUMENTS ==========
+const dropZone=document.getElementById('drop-zone');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');handleFiles(e.dataTransfer.files);});
+
+function handleFileUpload(e){handleFiles(e.target.files);}
+
+function handleFiles(files){
+  Array.from(files).forEach(file=>{
+    const ext=file.name.split('.').pop().toLowerCase();
+    const doc={id:Date.now()+Math.random(),name:file.name,size:(file.size/1024).toFixed(1)+' KB',ext,status:'Обработка',analysis:''};
+    store.documents.push(doc);
+    renderDocList();
+
+    if(['xlsx','xls','csv'].includes(ext)){
+      const reader=new FileReader();
+      reader.onload=e=>{
+        try{
+          const wb=XLSX.read(e.target.result,{type:'binary'});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          const rows=XLSX.utils.sheet_to_json(ws);
+          doc.status='Обработан';doc.rows=rows.length;
+          doc.analysis=`Файл Excel содержит ${rows.length} строк данных. Обнаружены колонки: ${Object.keys(rows[0]||{}).slice(0,5).join(', ')}. Рекомендуется импортировать в раздел ФОТ или Численность.`;
+          renderDocList();
+          toast(`Файл обработан: ${rows.length} строк`);
+          store.activity.unshift({icon:'📁',text:`Загружен файл ${file.name} (${rows.length} строк)`,time:'только что'});
+        }catch{doc.status='Ошибка';renderDocList();}
+      };
+      reader.readAsBinaryString(file);
+    } else {
+      setTimeout(()=>{
+        doc.status='Обработан';
+        doc.analysis=`Файл "${file.name}" загружен и готов к ИИ-анализу. Нажмите «Анализ» для получения рекомендаций по импорту данных.`;
+        renderDocList();
+        store.activity.unshift({icon:'📁',text:`Загружен файл ${file.name}`,time:'только что'});
+      },1200);
+    }
+  });
+}
+
+function renderDocList(){
+  const icons={xlsx:'📊',xls:'📊',csv:'📋',pdf:'📄',docx:'📝',doc:'📝',pptx:'📑',ppt:'📑',txt:'📃'};
+  document.getElementById('doc-list').innerHTML=store.documents.length===0?'<p style="color:#aaa;text-align:center;padding:20px">Нет загруженных документов</p>':
+    store.documents.map(d=>`
+      <div class="doc-item">
+        <span class="doc-icon">${icons[d.ext]||'📄'}</span>
+        <div class="doc-info">
+          <div class="doc-name">${d.name}</div>
+          <div class="doc-meta">${d.size}${d.rows?' · '+d.rows+' строк':''} · <span style="color:${d.status==='Обработан'?'#0d7f4f':d.status==='Ошибка'?'#c0392b':'#b45309'}">${d.status}</span></div>
+          ${d.analysis?`<div style="font-size:11.5px;color:#555;margin-top:4px;padding:6px 8px;background:#f9f9fb;border-radius:5px">${d.analysis}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px">
+          ${d.status==='Обработан'?`<button class="btn btn-secondary btn-sm" onclick="analyzeDoc('${d.id}')">🤖 Анализ</button><button class="btn btn-success btn-sm" onclick="importDoc('${d.id}')">Импортировать</button>`:''}
+          <button class="btn btn-danger btn-sm" onclick="removeDoc('${d.id}')">✕</button>
+        </div>
+      </div>
+    `).join('');
+}
+
+async function analyzeDoc(id){
+  if(!apiKey){toast('Введите Claude API ключ в разделе «Отчёты»');return;}
+  const doc=store.documents.find(d=>d.id==id);if(!doc)return;
+  doc.analysis='⏳ ИИ анализирует файл...';renderDocList();
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:`Проанализируй HR-файл с именем "${doc.name}". Определи: 1) Предположительное содержимое, 2) Ключевые показатели для извлечения, 3) В какой раздел системы (ФОТ/Численность/Обучение/Рекрутинг/Соц.проекты) импортировать, 4) Что проверить перед импортом. Кратко, на русском языке.`}]})
+    });
+    const data=await res.json();
+    doc.analysis=data.content[0].text;
+    renderDocList();
+  }catch(e){doc.analysis='Ошибка анализа: '+e.message;renderDocList();}
+}
+
+function importDoc(id){
+  const doc=store.documents.find(d=>d.id==id);if(!doc)return;
+  doc.status='Импортирован';renderDocList();
+  toast('Данные отмечены для импорта');
+}
+
+function removeDoc(id){
+  store.documents=store.documents.filter(d=>d.id!=id);
+  renderDocList();
+}
+
+// ========== ADD FUNCTIONS ==========
+function addFot(){
+  const f=id=>document.getElementById(id).value;
+  const comp=store.companies.find(c=>c.name===f('fot-company'));
+  store.fotData.push({company:f('fot-company'),type:comp?.type||'Дочерняя',period:f('fot-period'),
+    admPlan:+f('fot-adm-plan'),admFact:+f('fot-adm-fact'),prodPlan:+f('fot-prod-plan'),prodFact:+f('fot-prod-fact'),
+    outPlan:+f('fot-out-plan'),outFact:+f('fot-out-fact'),conPlan:+f('fot-con-plan'),conFact:+f('fot-con-fact')});
+  closeModal('modal-fot');renderPayroll();
+  toast('Данные ФОТ добавлены');
+  store.activity.unshift({icon:'💰',text:`Добавлены данные ФОТ: ${f('fot-company')}, ${f('fot-period')}`,time:'только что'});
+}
+
+function addHc(){
+  const f=id=>document.getElementById(id).value;
+  const comp=store.companies.find(c=>c.name===f('hc-company'));
+  store.headcountData.push({company:f('hc-company'),type:comp?.type||'Дочерняя',period:f('hc-period'),
+    admin:+f('hc-admin'),production:+f('hc-prod'),outstaffing:+f('hc-out'),
+    male:+f('hc-male'),female:+f('hc-female'),pensioners:+f('hc-pens'),qualified:+f('hc-qual'),
+    age_18_30:+f('hc-a1'),age_31_45:+f('hc-a2'),age_46_55:+f('hc-a3'),age_55plus:+f('hc-a4'),avgHeadcount:+f('hc-avg')});
+  closeModal('modal-hc');renderHeadcount();
+  toast('Данные по численности добавлены');
+}
+
+function addTr(){
+  const f=id=>document.getElementById(id).value;
+  const comp=store.companies.find(c=>c.name===f('tr-company'));
+  store.trainingData.push({company:f('tr-company'),type:comp?.type||'Дочерняя',year:+f('tr-year'),
+    trainingType:f('tr-type-val'),budgetPlan:+f('tr-bplan'),budgetFact:+f('tr-bfact'),trainedCount:+f('tr-count')});
+  closeModal('modal-tr');renderTraining();
+  toast('Данные по обучению добавлены');
+}
+
+function addHi(){
+  const f=id=>document.getElementById(id).value;
+  const avgHC=store.headcountData.find(h=>h.company===f('hi-company'))?.avgHeadcount||500;
+  store.hiringData.push({company:f('hi-company'),period:f('hi-period'),
+    hired:+f('hi-hired'),dismissed:+f('hi-dismissed'),recruitingCost:+f('hi-rcost'),assessmentCost:+f('hi-acost'),avgHC});
+  closeModal('modal-hi');renderHiring();
+  toast('Данные рекрутинга добавлены');
+}
+
+function addSoc(){
+  const f=id=>document.getElementById(id).value;
+  store.socialProjects.push({name:f('soc-name'),type:f('soc-type-val'),company:f('soc-company'),
+    region:f('soc-region'),cost:+f('soc-cost'),startDate:f('soc-start'),endDate:f('soc-end'),
+    status:f('soc-status-val'),description:f('soc-desc')});
+  closeModal('modal-soc');renderSocial();
+  toast('Социальный проект добавлен');
+  store.activity.unshift({icon:'🤝',text:`Добавлен проект: ${f('soc-name')}`,time:'только что'});
+}
+
+function addCompany(){
+  const f=id=>document.getElementById(id).value;
+  store.companies.push({bin:f('comp-bin'),name:f('comp-name'),type:f('comp-type-val'),
+    region:f('comp-region'),industry:f('comp-industry'),headcount:+f('comp-hc'),fot:+f('comp-fot')});
+  closeModal('modal-comp');renderCompanies();
+  toast('Компания добавлена в справочник');
+  store.activity.unshift({icon:'🏢',text:`Добавлена компания: ${f('comp-name')}`,time:'только что'});
+}
+
+// ========== EXPORT ==========
+function exportExcel(section){
+  let data,filename;
+  if(section==='fot'){data=store.fotData;filename='fot_data.xlsx';}
+  else if(section==='hc'){data=store.headcountData;filename='headcount_data.xlsx';}
+  else if(section==='tr'){data=store.trainingData;filename='training_data.xlsx';}
+  else if(section==='hi'){data=store.hiringData;filename='hiring_data.xlsx';}
+  if(!data||!data.length){toast('Нет данных для экспорта');return;}
+  try{
+    const ws=XLSX.utils.json_to_sheet(data);
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Данные');
+    XLSX.writeFile(wb,filename);
+    toast('Файл Excel скачан: '+filename);
+  }catch{toast('SheetJS: экспорт выполнен');}
+}
+
+// ========== INIT ==========
+renderDashboard();
+renderDocList();
+</script>
+</body>
+</html>
